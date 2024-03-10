@@ -19,6 +19,10 @@ class MultiClient:
         for client in self.clients.values():
             client.logout()
 
+    def get_quote(self, symbol):
+        symbol = next(iter(self.clients.values())).get_symbol(symbol)
+        return dict(filter(lambda field: field[0] in ("symbol", "bid", "ask"), symbol.items()))
+
     def get_trades(self):
         retval = dict()
 
@@ -29,14 +33,26 @@ class MultiClient:
                 if symbol in reduced_trades:
                     assert reduced_trades[symbol]["close_price"] == trade["close_price"]
                     reduced_trades[symbol]["volume"] += trade["volume"]
+                    reduced_trades[symbol]["nominalValue"] += trade["nominalValue"]
+                    reduced_trades[symbol]["profit"] += trade["profit"]
+                    reduced_trades[symbol]["current_value"] += trade["nominalValue"] + trade["profit"]
+
                 else:
                     reduced_trades[symbol] = trade
+                    reduced_trades[symbol]["current_value"] = trade["nominalValue"] + trade["profit"]
 
             return reduced_trades.values()
 
         for label, client in self.clients.items():
             trades = client.get_trades()
-            trades = list(map(lambda trade: dict(filter(lambda item: item[0] in ("symbol", "volume", "close_price"), trade.items())), trades))
+            # Select only relevant fields
+            trades = list(map(
+                lambda trade: dict(filter(
+                    lambda field: field[0] in ("symbol", "volume", "close_price", "nominalValue", "profit"),
+                    trade.items())),
+                trades)
+            )
+
             retval[label] = _reduce(trades)
 
         return retval
